@@ -29,7 +29,6 @@ impl ExecutableMemory {
         ExecutableMemory {
             ptr: unsafe {
                 let ptr = alloc_executable_memory(PAGE_SIZE, len);
-                libc::memset(ptr, 0xc3, len);
                 mem::transmute(ptr)
             },
             len: len,
@@ -127,15 +126,17 @@ mod test {
     fn test_executable_memory() {
         let mut memory = ExecutableMemory::default();
 
-        memory[0] = 0x48;
-        memory[1] = 0xc7;
-        memory[2] = 0xc0;
-        memory[3] = 0xff;
+        memory[0] = 0xb8;
+        memory[1] = 0x00;
+        memory[2] = 0x00;
+        memory[3] = 0x00;
+        memory[4] = 0x00;
+        memory[5] = 0xc3;
 
-        let f: fn() -> u8 = unsafe {
+        let f: fn() -> u64 = unsafe {
             mem::transmute(memory.as_ptr())
         };
 
-        assert_eq!(f(), 255_u8);
+        assert_eq!(f(), 0);
     }
 }
