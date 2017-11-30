@@ -12,7 +12,7 @@ homepage = "https://gitlab.com/nathanfaucett/rs-executable_memory"
 
 
 [dependencies]
-libc = { version = "0.2" }
-kernel32-sys = { version = "0.2" }
+libc = { version = "0.2", default-features = false }
+kernel32-sys = { version = "0.2", default-features = false }
 
 [dev-dependencies]

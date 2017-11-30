@@ -1,4 +1,4 @@
-use core::{slice, mem};
+use core::{slice, mem, fmt};
 use core::ops::{Deref, DerefMut};
 
 use libc;
@@ -8,7 +8,7 @@ use libc;
 pub const PAGE_SIZE: usize = 4096;
 
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExecutableMemory {
     ptr: *mut u8,
     len: usize,
@@ -28,8 +28,7 @@ impl ExecutableMemory {
 
         ExecutableMemory {
             ptr: unsafe {
-                let ptr = alloc_executable_memory(PAGE_SIZE, len);
-                mem::transmute(ptr)
+                mem::transmute(alloc_executable_memory(PAGE_SIZE, len))
             },
             len: len,
         }
@@ -65,6 +64,13 @@ impl DerefMut for ExecutableMemory {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_slice_mut()
+    }
+}
+
+impl fmt::Debug for ExecutableMemory {
+    #[inline(always)]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.as_slice().fmt(f)
     }
 }
 
@@ -123,20 +129,20 @@ mod test {
 
 
     #[test]
-    fn test_executable_memory() {
+    fn call_function() {
         let mut memory = ExecutableMemory::default();
 
         memory[0] = 0xb8;
-        memory[1] = 0x00;
-        memory[2] = 0x00;
-        memory[3] = 0x00;
-        memory[4] = 0x00;
+        memory[1] = 0xff;
+        memory[2] = 0xff;
+        memory[3] = 0xff;
+        memory[4] = 0xff;
         memory[5] = 0xc3;
 
-        let f: fn() -> u64 = unsafe {
-            mem::transmute(memory.as_ptr())
+        let f: fn() -> u32 = unsafe {
+            mem::transmute((&memory[0..6]).as_ptr())
         };
 
-        assert_eq!(f(), 0);
+        assert_eq!(f(), 4294967295);
     }
 }
