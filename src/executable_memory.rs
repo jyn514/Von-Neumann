@@ -1,8 +1,13 @@
 use core::{slice, mem, fmt};
 use core::ops::{Deref, DerefMut};
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use libc;
-#[cfg(target_family = "windows")] use kernel32;
+
+#[cfg(target_os = "windows")]
+use winapi;
+#[cfg(target_os = "windows")]
+use kernel32;
 
 
 pub const PAGE_SIZE: usize = 4096;
@@ -24,13 +29,11 @@ impl Default for ExecutableMemory {
 impl ExecutableMemory {
     #[inline]
     pub fn new(num_pages: usize) -> Self {
-        let len = num_pages * PAGE_SIZE;
-
         ExecutableMemory {
             ptr: unsafe {
-                mem::transmute(alloc_executable_memory(PAGE_SIZE, len))
+                alloc_executable_memory(PAGE_SIZE, num_pages)
             },
-            len: len,
+            len: num_pages * PAGE_SIZE,
         }
     }
 
@@ -38,6 +41,11 @@ impl ExecutableMemory {
     pub fn as_ptr(&self) -> *mut u8 {
         self.ptr
     }
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
     #[inline]
     pub fn as_slice(&self) -> &[u8] {
         unsafe {
@@ -84,42 +92,52 @@ impl Drop for ExecutableMemory {
 }
 
 
-#[cfg(target_family = "unix")]
-unsafe fn alloc_executable_memory(page_size: usize, len: usize) -> *mut libc::c_void {
-    let mut ptr: *mut libc::c_void = mem::uninitialized();
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8 {
+    let size = page_size * num_pages;
+    let mut raw_addr: *mut libc::c_void = mem::uninitialized();
 
-    libc::posix_memalign(&mut ptr, page_size, len);
-    libc::mprotect(ptr, len, libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE);
+    libc::posix_memalign(&mut raw_addr, page_size, size);
+    libc::mprotect(raw_addr, size, libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE);
 
-    ptr
+    mem::transmute(raw_addr)
 }
-#[cfg(target_family = "windows")]
-unsafe fn alloc_executable_memory(page_size: usize, len: usize) -> *mut libc::c_void {
-    let mut ptr: *mut libc::c_void = mem::uninitialized();
+#[cfg(target_os = "windows")]
+unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8 {
+    let size = (page_size * num_pages) as u64;
+    let raw_addr: *mut winapi::c_void;
 
-    kernel32::VirtualAlloc(
-        ptr,
-        page_size,
-        kernel32::MEM_RESERVE | kernel32::MEM_COMMIT,
-        kernel32::PAGE_READWRITE
+    raw_addr = kernel32::VirtualAlloc(
+        ::core::ptr::null_mut(),
+        size,
+        winapi::MEM_RESERVE | winapi::MEM_COMMIT,
+        winapi::winnt::PAGE_EXECUTE_READWRITE
     );
-    kernel32::VirtualProtect(
-        ptr,
-        len,
-        kernel32::PAGE_EXECUTE_READ,
-        0
+    if raw_addr == 0 as *mut winapi::c_void {
+        panic!("Could not allocate memory. Error Code: {:?}", kernel32::GetLastError());
+    }
+
+    let old_prot: *mut winapi::DWORD = mem::uninitialized();
+    let result = kernel32::VirtualProtect(
+        raw_addr,
+        size,
+        winapi::winnt::PAGE_EXECUTE_READWRITE,
+        old_prot as *mut _,
     );
+    if result == 0 {
+        panic!("Could not protect allocated memory. Error Code: {:?}", kernel32::GetLastError());
+    }
 
-    ptr
+    mem::transmute(raw_addr)
 }
 
-#[cfg(target_family = "unix")]
-unsafe fn dealloc_executable_memory(ptr: *mut libc::c_void, page_size: usize) {
-    libc::munmap(ptr, page_size);
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+unsafe fn dealloc_executable_memory(ptr: *mut u8, page_size: usize) {
+    libc::munmap(ptr as *mut _, page_size);
 }
-#[cfg(target_family = "windows")]
-unsafe fn dealloc_executable_memory(ptr: *mut libc::c_void, page_size: usize) {
-    kernel32::VirtualFree(ptr, 0, kernel32::MEM_RELEASE);
+#[cfg(target_os = "windows")]
+unsafe fn dealloc_executable_memory(ptr: *mut u8, _: usize) {
+	kernel32::VirtualFree(ptr as *mut _, 0, winapi::MEM_RELEASE);
 }
 
 
@@ -129,20 +147,17 @@ mod test {
 
 
     #[test]
-    fn call_function() {
+    fn test_call_function() {
         let mut memory = ExecutableMemory::default();
 
         memory[0] = 0xb8;
         memory[1] = 0xff;
-        memory[2] = 0xff;
-        memory[3] = 0xff;
-        memory[4] = 0xff;
-        memory[5] = 0xc3;
+        memory[2] = 0xc3;
 
-        let f: fn() -> u32 = unsafe {
-            mem::transmute((&memory[0..6]).as_ptr())
+        let f: fn() -> u8 = unsafe {
+            mem::transmute((&memory[0..3]).as_ptr())
         };
 
-        assert_eq!(f(), 4294967295);
+        assert_eq!(f(), 255);
     }
 }
