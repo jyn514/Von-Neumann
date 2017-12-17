@@ -3,7 +3,9 @@ name = "executable_memory"
 version = "0.1.0"
 authors = ["nathanfaucett <nathanfaucett@gmail.com>"]
 
-keywords = ["executable", "memory"]
+keywords = ["executable", "memory", "windows"]
+categories = ["memory-management", "no-std"]
+
 description = "executable memory for windows and unix"
 license = "MIT"
 readme = "README.md"
