@@ -86,7 +86,7 @@ impl Drop for ExecutableMemory {
     #[inline(always)]
     fn drop(&mut self) {
         unsafe {
-            dealloc_executable_memory(mem::transmute(self.ptr), PAGE_SIZE);
+            dealloc_executable_memory(self.ptr, PAGE_SIZE);
         }
     }
 }
