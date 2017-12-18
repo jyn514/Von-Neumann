@@ -1,6 +1,6 @@
 [package]
 name = "executable_memory"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["nathanfaucett <nathanfaucett@gmail.com>"]
 
 keywords = ["executable", "memory", "windows"]

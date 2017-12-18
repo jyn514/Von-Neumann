@@ -117,17 +117,6 @@ unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8
         panic!("Could not allocate memory. Error Code: {:?}", kernel32::GetLastError());
     }
 
-    let old_prot: *mut winapi::DWORD = mem::uninitialized();
-    let result = kernel32::VirtualProtect(
-        raw_addr,
-        size,
-        winapi::winnt::PAGE_EXECUTE_READWRITE,
-        old_prot as *mut _,
-    );
-    if result == 0 {
-        panic!("Could not protect allocated memory. Error Code: {:?}", kernel32::GetLastError());
-    }
-
     mem::transmute(raw_addr)
 }
 
