@@ -6,8 +6,6 @@ use libc;
 
 #[cfg(target_os = "windows")]
 use winapi;
-#[cfg(target_os = "windows")]
-use kernel32;
 
 
 pub const PAGE_SIZE: usize = 4096;
@@ -107,25 +105,25 @@ unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8
     let size = (page_size * num_pages) as u64;
     let raw_addr: *mut winapi::c_void;
 
-    raw_addr = kernel32::VirtualAlloc(
+    raw_addr = winapi::VirtualAlloc(
         ::core::ptr::null_mut(),
         size,
         winapi::MEM_RESERVE | winapi::MEM_COMMIT,
         winapi::winnt::PAGE_EXECUTE_READWRITE
     );
     if raw_addr == 0 as *mut winapi::c_void {
-        panic!("Could not allocate memory. Error Code: {:?}", kernel32::GetLastError());
+        panic!("Could not allocate memory. Error Code: {:?}", winapi::GetLastError());
     }
 
     let old_prot: *mut winapi::DWORD = mem::uninitialized();
-    let result = kernel32::VirtualProtect(
+    let result = winapi::VirtualProtect(
         raw_addr,
         size,
         winapi::winnt::PAGE_EXECUTE_READWRITE,
         old_prot as *mut _,
     );
     if result == 0 {
-        panic!("Could not protect allocated memory. Error Code: {:?}", kernel32::GetLastError());
+        panic!("Could not protect allocated memory. Error Code: {:?}", winapi::GetLastError());
     }
 
     mem::transmute(raw_addr)
@@ -137,7 +135,7 @@ unsafe fn dealloc_executable_memory(ptr: *mut u8, page_size: usize) {
 }
 #[cfg(target_os = "windows")]
 unsafe fn dealloc_executable_memory(ptr: *mut u8, _: usize) {
-	kernel32::VirtualFree(ptr as *mut _, 0, winapi::MEM_RELEASE);
+	winapi::VirtualFree(ptr as *mut _, 0, winapi::MEM_RELEASE);
 }
 
 
