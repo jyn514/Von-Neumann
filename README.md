@@ -13,6 +13,7 @@ use executable_memory::ExecutableMemory;
 fn main() {
     let mut memory = ExecutableMemory::default(); // Page size 1
 
+    // x86_64
     memory[0] = 0xb8;
     memory[1] = 0xff;
     memory[2] = 0xff;

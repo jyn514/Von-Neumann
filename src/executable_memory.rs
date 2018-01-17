@@ -11,7 +11,7 @@ use winapi;
 pub const PAGE_SIZE: usize = 4096;
 
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(PartialEq, Eq)]
 pub struct ExecutableMemory {
     ptr: *mut u8,
     len: usize,
@@ -61,27 +61,27 @@ impl ExecutableMemory {
 impl Deref for ExecutableMemory {
     type Target = [u8];
 
-    #[inline(always)]
+    #[inline]
     fn deref(&self) -> &Self::Target {
         self.as_slice()
     }
 }
 impl DerefMut for ExecutableMemory {
-    #[inline(always)]
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_slice_mut()
     }
 }
 
 impl fmt::Debug for ExecutableMemory {
-    #[inline(always)]
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.as_slice().fmt(f)
     }
 }
 
 impl Drop for ExecutableMemory {
-    #[inline(always)]
+    #[inline]
     fn drop(&mut self) {
         unsafe {
             dealloc_executable_memory(self.ptr, PAGE_SIZE);
@@ -102,29 +102,21 @@ unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8
 }
 #[cfg(target_os = "windows")]
 unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8 {
-    let size = (page_size * num_pages) as u64;
-    let raw_addr: *mut winapi::c_void;
+    let size = page_size * num_pages;
+    let raw_addr: *mut winapi::ctypes::c_void;
 
-    raw_addr = kernel32::VirtualAlloc(
+    raw_addr = winapi::um::memoryapi::VirtualAlloc(
         ::core::ptr::null_mut(),
         size,
-        winapi::MEM_RESERVE | winapi::MEM_COMMIT,
-        winapi::winnt::PAGE_EXECUTE_READWRITE
+        winapi::um::winnt::MEM_RESERVE | winapi::um::winnt::MEM_COMMIT,
+        winapi::um::winnt::PAGE_EXECUTE_READWRITE
     );
-    if raw_addr == 0 as *mut winapi::c_void {
-        panic!("Could not allocate memory. Error Code: {:?}", kernel32::GetLastError());
-    }
 
-    let old_prot: *mut winapi::DWORD = mem::uninitialized();
-    let result = kernel32::VirtualProtect(
-        raw_addr,
-        size,
-        winapi::winnt::PAGE_EXECUTE_READWRITE,
-        old_prot as *mut _,
+    assert_ne!(
+        raw_addr, 0 as *mut winapi::ctypes::c_void,
+        "Could not allocate memory. Error Code: {:?}",
+        winapi::um::errhandlingapi::GetLastError()
     );
-    if result == 0 {
-        panic!("Could not protect allocated memory. Error Code: {:?}", kernel32::GetLastError());
-    }
 
     mem::transmute(raw_addr)
 }
@@ -135,7 +127,7 @@ unsafe fn dealloc_executable_memory(ptr: *mut u8, page_size: usize) {
 }
 #[cfg(target_os = "windows")]
 unsafe fn dealloc_executable_memory(ptr: *mut u8, _: usize) {
-	kernel32::VirtualFree(ptr as *mut _, 0, winapi::MEM_RELEASE);
+	winapi::um::memoryapi::VirtualFree(ptr as *mut _, 0, winapi::um::winnt::MEM_RELEASE);
 }
 
 
