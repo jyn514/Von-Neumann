@@ -3,4 +3,4 @@
 
 mod executable_memory;
 
-pub use self::executable_memory::{PAGE_SIZE, ExecutableMemory};
+pub use self::executable_memory::ExecutableMemory;

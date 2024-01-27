@@ -7,7 +7,7 @@ executable memory for windows and unix ("von Neumann architecture")
 use vonneumann::ExecutableMemory;
 
 fn main() {
-    let mut memory = ExecutableMemory::default(); // Page size 1
+    let mut memory = ExecutableMemory::new(6);
 
     // https://www.felixcloutier.com/x86/
     memory[0] = 0xb8;

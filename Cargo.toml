@@ -13,6 +13,6 @@ repository = "https://github.com/jyn514/VonNeumann"
 
 [dependencies]
 libc = { version = "0.2" }
-winapi = { version = "0.3", features = ["memoryapi", "winnt", "errhandlingapi"] }
+winapi = { version = "0.3", features = ["memoryapi", "winnt", "errhandlingapi", "sysinfoapi"] }
 
 [dev-dependencies]

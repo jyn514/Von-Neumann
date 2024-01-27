@@ -1,15 +1,6 @@
 use core::{slice, mem, fmt};
 use core::ops::{Deref, DerefMut};
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-use libc;
-
-#[cfg(target_os = "windows")]
-use winapi;
-
-
-pub const PAGE_SIZE: usize = 4096;
-
+use core::mem::MaybeUninit;
 
 #[derive(PartialEq, Eq)]
 pub struct ExecutableMemory {
@@ -17,22 +8,25 @@ pub struct ExecutableMemory {
     len: usize,
 }
 
-impl Default for ExecutableMemory {
-    #[inline(always)]
-    fn default() -> Self {
-        ExecutableMemory::new(1)
-    }
-}
-
 impl ExecutableMemory {
     #[inline]
-    pub fn new(num_pages: usize) -> Self {
-        ExecutableMemory {
-            ptr: unsafe {
-                alloc_executable_memory(PAGE_SIZE, num_pages)
-            },
-            len: num_pages * PAGE_SIZE,
-        }
+    /// Return a new region of executable memory.
+    ///
+    /// The region will be at least `desired_size` large, but may be larger if `desired_size` is not
+    /// a multiple of the page size.
+    pub fn new(desired_size: usize) -> Self {
+        let (ptr, len) = unsafe { alloc_executable_memory(desired_size) };
+        ExecutableMemory { ptr, len }
+    }
+
+    /// Return a region of executable memory set to the contents of `data`.
+    ///
+    /// The region will be rounded up to the nearest page (see [`PAGE_SIZE`]).
+    /// The contents of the memory after `data.len()` is not specified.
+    pub fn with_contents(data: &[u8]) -> Self {
+        let mut mem = Self::new(data.len());
+        mem.as_slice_mut()[..data.len()].copy_from_slice(&data);
+        mem
     }
 
     #[inline(always)]
@@ -89,28 +83,35 @@ impl Drop for ExecutableMemory {
     }
 }
 
+/// Round `desired` up to the nearest multiple of `page_size`.
+fn round_to(desired: usize, page_size: usize) -> usize {
+    let rem = desired % page_size;
+    if rem == 0 { desired } else { desired.checked_add(page_size - rem).expect("don't try to allocate usize::MAX lol") }
+}
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8 {
-    use core::mem::MaybeUninit;
+unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
+    let page_size = libc::sysconf(libc::_SC_PAGESIZE);
+    let actual = round_to(desired, page_size);
 
-    let size = page_size.checked_mul(num_pages).unwrap_or_else(|| panic!("{} overflowed usize::MAX", num_pages));
     let mut raw_addr = MaybeUninit::<*mut libc::c_void>::uninit();
-
-    libc::posix_memalign(raw_addr.as_mut_ptr(), page_size, size);
+    libc::posix_memalign(raw_addr.as_mut_ptr(), page_size, actual);
     let raw_addr = raw_addr.assume_init();
-    libc::mprotect(raw_addr, size, libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE);
+    libc::mprotect(raw_addr, actual, libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE);
 
-    mem::transmute(raw_addr)
+    (mem::transmute(raw_addr), actual)
 }
 #[cfg(target_os = "windows")]
-unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8 {
-    let size = page_size.checked_mul(num_pages).unwrap_or_else(|| panic!("{} overflowed usize::MAX", num_pages));
-    let raw_addr: *mut winapi::ctypes::c_void;
+unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
+    use winapi::um::sysinfoapi;
+    let mut sysinfo = MaybeUninit::<sysinfoapi::SYSTEM_INFO>::uninit();
+    sysinfoapi::GetSystemInfo(sysinfo.as_mut_ptr());
+    let page_size = sysinfo.assume_init().dwAllocationGranularity;
 
-    raw_addr = winapi::um::memoryapi::VirtualAlloc(
+    let actual = round_to(desired, page_size as usize);
+    let raw_addr: *mut winapi::ctypes::c_void = winapi::um::memoryapi::VirtualAlloc(
         ::core::ptr::null_mut(),
-        size,
+        actual,
         winapi::um::winnt::MEM_RESERVE | winapi::um::winnt::MEM_COMMIT,
         winapi::um::winnt::PAGE_EXECUTE_READWRITE
     );
@@ -121,7 +122,7 @@ unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8
         winapi::um::errhandlingapi::GetLastError()
     );
 
-    mem::transmute(raw_addr)
+    (mem::transmute(raw_addr), actual)
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -141,7 +142,7 @@ mod test {
 
     #[test]
     fn test_call_function() {
-        let mut memory = ExecutableMemory::default();
+        let mut memory = ExecutableMemory::new(1);
 
         memory[0] = 0xb8;
         memory[1] = 0xff;
@@ -158,7 +159,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic = "overflowed usize::MAX"]
+    #[should_panic = "don't try to allocate usize::MAX lol"]
     fn overflow() {
         ExecutableMemory::new(usize::MAX);
     }
