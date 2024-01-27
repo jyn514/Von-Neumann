@@ -4,13 +4,14 @@ name: CI
 on: [push, pull_request]
 
 jobs:
-  test:
+  # This fails often and also doesn't take long to run. Put it in a separate job.
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
       - uses: dtolnay/rust-toolchain@nightly
         with:
-          components: clippy, miri
+          components: rustfmt,clippy
 
       - name: restore build & cargo cache
         uses: Swatinem/rust-cache@v1
@@ -19,24 +20,29 @@ jobs:
         # rust.json is copied from https://github.com/hecrj/setup-rust-action/blob/master/.github/rust.json
         run: echo "##[add-matcher].github/rust.json"
 
-      - name: Clippy
-        run: cargo clippy --all-targets --all-features --locked -- -Dwarnings
-      - name: Test
-        run: cargo test
-    
-  # This fails often and also doesn't take long to run. Put it in a separate job.
-  fmt:
-    name: fmt
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@master
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-
-      - name: show warnings as check annotations on the PR
-        run: echo "##[add-matcher].github/rust.json"
-
       - name: Format
         run: cargo fmt -- --check
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features --locked -- -Dwarnings
+
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@master
+      - uses: dtolnay/rust-toolchain@nightly
+        # with:
+        #   components: miri
+
+      - name: restore build & cargo cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: show warnings as check annotations on the PR
+        # rust.json is copied from https://github.com/hecrj/setup-rust-action/blob/master/.github/rust.json
+        run: echo "##[add-matcher].github/rust.json"
+
+      - name: Test
+        run: cargo test
