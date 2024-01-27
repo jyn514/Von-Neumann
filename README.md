@@ -3,6 +3,10 @@ Von Neumann
 
 executable memory for windows and unix ("von Neumann architecture")
 
+note: this crate maps pages as RWX. this is somewhat insecure and makes it easier to escalate security vulns. there is an alternative crate [`jit-allocator`] which "dual maps" pages as RX and RW, avoiding this issue.
+
+[jit-allocator]: https://docs.rs/crate/jit-allocator/
+
 ```rust
 use vonneumann::ExecutableMemory;
 
