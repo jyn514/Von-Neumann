@@ -22,7 +22,7 @@ fn main() {
     memory[5] = 0xc3;
 
     let f: fn() -> u32 = unsafe {
-        mem::transmute((&memory[0..6]).as_ptr())
+        std::mem::transmute((&memory[0..6]).as_ptr())
     };
 
     assert_eq!(f(), 4294967295);
