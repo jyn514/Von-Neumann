@@ -9,7 +9,7 @@ categories = ["memory-management", "no-std"]
 description = "executable memory for windows and unix"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/jyn514/VonNeumann"
+repository = "https://github.com/jyn514/Von-Neumann"
 
 [features]
 # enables support for `std::alloc::Allocator`
