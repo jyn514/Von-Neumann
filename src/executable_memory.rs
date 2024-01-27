@@ -125,8 +125,19 @@ unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
     let page_size = libc::sysconf(libc::_SC_PAGESIZE) as usize;
     let actual = round_to(desired, page_size);
 
-    let ptr = libc::mmap(ptr::null_mut(), actual, libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE, libc::MAP_PRIVATE | libc::MAP_ANONYMOUS, -1, 0);
-    if ptr == libc::MAP_FAILED { (ptr::null_mut(), 0) } else { (ptr.cast(), actual) }
+    let ptr = libc::mmap(
+        ptr::null_mut(),
+        actual,
+        libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE,
+        libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
+        -1,
+        0,
+    );
+    if ptr == libc::MAP_FAILED {
+        (ptr::null_mut(), 0)
+    } else {
+        (ptr.cast(), actual)
+    }
 }
 #[cfg(target_os = "windows")]
 unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
