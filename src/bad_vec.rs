@@ -1,11 +1,13 @@
+use crate::exec_alloc::*;
 use core::ops::{Deref, DerefMut};
+use core::ptr::NonNull;
 use core::{fmt, ptr, slice};
 
 #[derive(PartialEq, Eq)]
 pub struct ExecutableMemory {
-    ptr: *mut u8,
+    // NOTE: `slice.len()` is the *capacity* of the allocated memory. it may be uninitialized.
+    slice: NonNull<[u8]>,
     len: usize,
-    cap: usize,
 }
 
 impl ExecutableMemory {
@@ -16,38 +18,38 @@ impl ExecutableMemory {
     /// a multiple of the page size.
     /// For safety, this function zeroes all the memory it allocates. This may lead to adverse
     /// performance effects. Consider using [`with_contents`](Self::with_contents) instead.
+    /// On nightly, you can use [`Vec<_, ExecAlloc>`][crate::Vec], which has more APIs available.
     pub fn new(desired_size: usize) -> Self {
         unsafe {
-            let (ptr, len) = alloc_executable_memory(desired_size);
+            let slice = alloc_executable_memory(desired_size).expect("failed to allocate memory");
             // SAFETY: `alloc_executable_memory` guarantees `ptr` is `len` and aligned.
-            ptr::write_bytes(ptr, 0_u8, len);
-            ExecutableMemory { ptr, len, cap: len }
+            ptr::write_bytes(slice.as_ptr().cast::<u8>(), 0_u8, slice.len());
+            ExecutableMemory {
+                slice,
+                len: slice.len(),
+            }
         }
     }
 
     /// Return a region of executable memory set to the contents of `data`.
-    ///
-    /// The region will be rounded up to the nearest page (see [`PAGE_SIZE`]).
-    /// The contents of the memory after `data.len()` is not specified.
     pub fn with_contents(data: &[u8]) -> Self {
         unsafe {
-            let (ptr, cap) = alloc_executable_memory(data.len());
+            let slice = alloc_executable_memory(data.len()).expect("failed to allocate memory");
             // SAFETY: `alloc_executable_memory` guarantees it returns a new memory allocation, so these don't overlap.
-            // it also guarantees `ptr` is at least `data.len()` and aligned.
+            // it also guarantees `slice` is at least `data.len()` and aligned.
             // rust's safety guarantees ensure `data.ptr()` and `data.len()` are aligned and accurate.
-            ptr::copy_nonoverlapping(data.as_ptr(), ptr, data.len());
+            ptr::copy_nonoverlapping(data.as_ptr(), slice.as_ptr().cast(), data.len());
             // TODO: maybe we could implement this as `Vec<T, Alloc = ExecAllocator>` instead?
             ExecutableMemory {
-                ptr,
+                slice,
                 len: data.len(),
-                cap,
             }
         }
     }
 
     #[inline(always)]
     pub fn as_ptr(&self) -> *mut u8 {
-        self.ptr
+        self.slice.as_ptr().cast()
     }
     #[inline(always)]
     pub fn len(&self) -> usize {
@@ -64,7 +66,7 @@ impl ExecutableMemory {
             // SAFETY: `len` and `ptr` cannot be modified outside this module, and both `new` and
             // `with_contents` guarantee that `len` bytes of `ptr` are initialized.
             // this slice cannot be mutated: the only way to mutate is through `as_slice_mut`, which takes `&mut self`.
-            slice::from_raw_parts(self.ptr, self.len)
+            slice::from_raw_parts(self.as_ptr(), self.len)
         }
     }
     #[inline]
@@ -72,7 +74,7 @@ impl ExecutableMemory {
         unsafe {
             // SAFETY: `&mut self` guarantees we don't have two slices at once.
             // theoretically someone could call `unsafe { *mem.as_ptr() = x }` but that's on them to uphold the safety guarantees.
-            slice::from_raw_parts_mut(self.ptr, self.len)
+            slice::from_raw_parts_mut(self.as_ptr(), self.len)
         }
     }
 }
@@ -103,76 +105,9 @@ impl Drop for ExecutableMemory {
     #[inline]
     fn drop(&mut self) {
         unsafe {
-            dealloc_executable_memory(self.ptr, self.cap);
+            dealloc_executable_memory(self.as_ptr(), self.slice.len());
         }
     }
-}
-
-/// Round `desired` up to the nearest multiple of `page_size`.
-fn round_to(desired: usize, page_size: usize) -> usize {
-    let rem = desired % page_size;
-    if rem == 0 {
-        desired
-    } else {
-        desired
-            .checked_add(page_size - rem)
-            .expect("don't try to allocate usize::MAX lol")
-    }
-}
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
-    let page_size = libc::sysconf(libc::_SC_PAGESIZE) as usize;
-    let actual = round_to(desired, page_size);
-
-    let ptr = libc::mmap(
-        ptr::null_mut(),
-        actual,
-        libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE,
-        libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
-        -1,
-        0,
-    );
-    if ptr == libc::MAP_FAILED {
-        (ptr::null_mut(), 0)
-    } else {
-        (ptr.cast(), actual)
-    }
-}
-#[cfg(target_os = "windows")]
-unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
-    use core::mem::MaybeUninit;
-    use winapi::um::sysinfoapi;
-
-    let mut sysinfo = MaybeUninit::<sysinfoapi::SYSTEM_INFO>::uninit();
-    sysinfoapi::GetSystemInfo(sysinfo.as_mut_ptr());
-    let page_size = sysinfo.assume_init().dwAllocationGranularity;
-
-    let actual = round_to(desired, page_size as usize);
-    let raw_addr: *mut winapi::ctypes::c_void = winapi::um::memoryapi::VirtualAlloc(
-        ptr::null_mut(),
-        actual,
-        winapi::um::winnt::MEM_RESERVE | winapi::um::winnt::MEM_COMMIT,
-        winapi::um::winnt::PAGE_EXECUTE_READWRITE,
-    );
-
-    assert_ne!(
-        raw_addr,
-        0 as *mut winapi::ctypes::c_void,
-        "Could not allocate memory. Error Code: {:?}",
-        winapi::um::errhandlingapi::GetLastError()
-    );
-
-    (raw_addr.cast(), actual)
-}
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-unsafe fn dealloc_executable_memory(ptr: *mut u8, cap: usize) {
-    libc::munmap(ptr as *mut _, cap);
-}
-#[cfg(target_os = "windows")]
-unsafe fn dealloc_executable_memory(ptr: *mut u8, _: usize) {
-    winapi::um::memoryapi::VirtualFree(ptr as *mut _, 0, winapi::um::winnt::MEM_RELEASE);
 }
 
 #[cfg(test)]

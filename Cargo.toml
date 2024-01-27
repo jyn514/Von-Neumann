@@ -11,8 +11,13 @@ license = "MIT"
 readme = "README.md"
 repository = "https://github.com/jyn514/VonNeumann"
 
-[dependencies]
+[features]
+# enables support for `std::alloc::Allocator`
+nightly = []
+
+[target.'cfg(unix)'.dependencies]
 libc = { version = "0.2" }
+[target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["memoryapi", "winnt", "errhandlingapi", "sysinfoapi"] }
 
 [dev-dependencies]
