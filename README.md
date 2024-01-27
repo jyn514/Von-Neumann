@@ -50,3 +50,11 @@ this crate supports the [`Allocator`] API when `--features nightly` is enabled. 
 
 this crate automatically unmaps the memory for you on drop, and supports windows as well as unix.
 unlike `memmap2` you can have the memory be executable and writable at the same time :ferrisClueless:
+
+## faq
+
+### can i use this in prod?
+
+lol please do i want to watch your code burn
+
+as a reminder THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED
