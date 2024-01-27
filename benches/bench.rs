@@ -1,12 +1,8 @@
 #![feature(test)]
 
-
 extern crate test;
-extern crate executable_memory;
-
-
 use test::Bencher;
-use executable_memory::ExecutableMemory;
+use vonneumann::ExecutableMemory;
 
 use std::mem;
 

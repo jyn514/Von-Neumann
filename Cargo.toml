@@ -1,17 +1,15 @@
 [package]
-name = "executable_memory"
-version = "0.1.2"
-authors = ["nathanfaucett <nathanfaucett@gmail.com>"]
+name = "vonneumann"
+version = "1.0.0"
+edition = "2021"
 
-keywords = ["executable", "memory", "windows"]
+keywords = ["executable", "memory", "windows", "unix"]
 categories = ["memory-management", "no-std"]
 
 description = "executable memory for windows and unix"
 license = "MIT"
 readme = "README.md"
-repository = "https://gitlab.com/nathanfaucett/rs-executable_memory.git"
-homepage = "https://gitlab.com/nathanfaucett/rs-executable_memory"
-
+repository = "https://github.com/jyn514/VonNeumann"
 
 [dependencies]
 libc = { version = "0.2" }

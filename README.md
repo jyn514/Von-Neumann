@@ -1,19 +1,15 @@
-rs-executable_memory
+Von Neumann
 =====
 
-executable memory for windows and unix
+executable memory for windows and unix ("von Neumann architecture")
 
 ```rust
-extern crate executable_memory;
-
-
-use executable_memory::ExecutableMemory;
-
+use vonneumann::ExecutableMemory;
 
 fn main() {
     let mut memory = ExecutableMemory::default(); // Page size 1
 
-    // x86_64
+    // https://www.felixcloutier.com/x86/
     memory[0] = 0xb8;
     memory[1] = 0xff;
     memory[2] = 0xff;
