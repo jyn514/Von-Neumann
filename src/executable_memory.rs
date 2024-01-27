@@ -111,7 +111,7 @@ fn round_to(desired: usize, page_size: usize) -> usize {
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
-    let page_size = libc::sysconf(libc::_SC_PAGESIZE);
+    let page_size = libc::sysconf(libc::_SC_PAGESIZE) as usize;
     let actual = round_to(desired, page_size);
 
     let mut raw_addr = MaybeUninit::<*mut libc::c_void>::uninit();
