@@ -35,8 +35,9 @@ this crate maps pages as RWX. this is somewhat insecure and makes it easier to e
 
 this crate always allocates full pages, which is inefficient for small allocations, and slow if you allocate frequently. `jit-allocator` can return byte-level allocations instead.
 
-this crate supports the `Allocator` API when `--features nightly` is enabled. as a result, it can be used with `Vec`, and using it requires less unsafe (basically just the transmute to turn the data into a function pointer). jit-allocator inherently cannot do this because it uses dual-mapping.
+this crate supports the [`Allocator`] API when `--features nightly` is enabled. as a result, it can be used with `Vec`, and using it requires less unsafe (basically just the transmute to turn the data into a function pointer). jit-allocator inherently cannot do this because it uses dual-mapping.
 
+[`Allocator`]: https://doc.rust-lang.org/nightly/std/alloc/trait.Allocator.html
 [`jit-allocator`]: https://docs.rs/crate/jit-allocator/
 
 ### [`memfd-exec`]

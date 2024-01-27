@@ -3,6 +3,7 @@ use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 use core::{fmt, ptr, slice};
 
+/// This is basically a bad version of `Vec` that doesn't require `Vec::new_in` to be stabilized.
 #[derive(PartialEq, Eq)]
 pub struct ExecutableMemory {
     // NOTE: `slice.len()` is the *capacity* of the allocated memory. it may be uninitialized.

@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![no_std]
-#![cfg_attr(feature = "nightly", feature(allocator_api))]
+#![cfg_attr(feature = "nightly", feature(allocator_api, doc_auto_cfg))]
 
 mod exec_alloc;
 
@@ -16,7 +16,23 @@ mod alloc_api {
     use crate::exec_alloc;
     use core::alloc::AllocError;
 
+    /// A [`Vec`](alloc::vec::Vec) backed by RWX memory.
+    ///
+    /// See [`ExecutableAllocator`].
     pub type Vec<T> = alloc::vec::Vec<T, ExecutableAllocator>;
+    /// An allocator that maps pages as RWX.
+    ///
+    /// # example
+    /// ```
+    /// #![feature(allocator_api)]
+    /// let mut code = Vec::with_capacity_in(2, vonneumann::ExecutableAllocator);
+    /// code.push(/* idk what x86 looks like lol */ 0x90_u8);
+    /// code.push(0xc3);
+    /// unsafe {
+    ///     let f = core::mem::transmute::<*mut u8, unsafe fn()>(code.as_mut_ptr());
+    ///     f();
+    /// }
+    /// ```
     pub struct ExecutableAllocator;
     unsafe impl core::alloc::Allocator for ExecutableAllocator {
         fn allocate(
@@ -29,22 +45,6 @@ mod alloc_api {
 
         unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, layout: core::alloc::Layout) {
             exec_alloc::dealloc_executable_memory(ptr.as_ptr(), layout.size());
-        }
-    }
-
-    #[cfg(test)]
-    mod test {
-        extern crate alloc;
-
-        #[test]
-        fn exec_data() {
-            let mut code = super::Vec::with_capacity_in(2, crate::ExecutableAllocator);
-            code.push(/* idk what x86 looks like lol */ 0x90_u8);
-            code.push(0xc3);
-            unsafe {
-                let f = core::mem::transmute::<*mut u8, unsafe fn()>(code.as_mut_ptr());
-                f();
-            }
         }
     }
 }
