@@ -1,6 +1,6 @@
 use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
-use core::{fmt, mem, ptr, slice};
+use core::{fmt, ptr, slice};
 
 #[derive(PartialEq, Eq)]
 pub struct ExecutableMemory {
@@ -132,7 +132,7 @@ unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
         libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE,
     );
 
-    (mem::transmute(raw_addr), actual)
+    (raw_addr.cast(), actual)
 }
 #[cfg(target_os = "windows")]
 unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
@@ -156,7 +156,7 @@ unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
         winapi::um::errhandlingapi::GetLastError()
     );
 
-    (mem::transmute(raw_addr), actual)
+    (raw_addr.cast(), actual)
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -183,7 +183,7 @@ mod test {
         memory[4] = 0xff;
         memory[5] = 0xc3;
 
-        let f: fn() -> u32 = unsafe { mem::transmute((&memory[0..6]).as_ptr()) };
+        let f: fn() -> u32 = unsafe { core::mem::transmute(memory[0..6].as_ptr()) };
 
         assert_eq!(f(), 4294967295);
     }
