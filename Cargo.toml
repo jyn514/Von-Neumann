@@ -18,6 +18,6 @@ nightly = []
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2" }
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["memoryapi", "winnt", "errhandlingapi", "sysinfoapi"] }
+winapi = { version = "0.3", features = ["memoryapi", "winnt", "sysinfoapi"] }
 
 [dev-dependencies]
