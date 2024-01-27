@@ -5,6 +5,7 @@ use core::{fmt, ptr, slice};
 pub struct ExecutableMemory {
     ptr: *mut u8,
     len: usize,
+    cap: usize,
 }
 
 impl ExecutableMemory {
@@ -20,7 +21,7 @@ impl ExecutableMemory {
             let (ptr, len) = alloc_executable_memory(desired_size);
             // SAFETY: `alloc_executable_memory` guarantees `ptr` is `len` and aligned.
             ptr::write_bytes(ptr, 0_u8, len);
-            ExecutableMemory { ptr, len }
+            ExecutableMemory { ptr, len, cap: len }
         }
     }
 
@@ -30,18 +31,16 @@ impl ExecutableMemory {
     /// The contents of the memory after `data.len()` is not specified.
     pub fn with_contents(data: &[u8]) -> Self {
         unsafe {
-            let (ptr, _) = alloc_executable_memory(data.len());
+            let (ptr, cap) = alloc_executable_memory(data.len());
             // SAFETY: `alloc_executable_memory` guarantees it returns a new memory allocation, so these don't overlap.
             // it also guarantees `ptr` is at least `data.len()` and aligned.
             // rust's safety guarantees ensure `data.ptr()` and `data.len()` are aligned and accurate.
             ptr::copy_nonoverlapping(data.as_ptr(), ptr, data.len());
-            // NOTE: we ignore how much memory was actually allocated. the alternative is to add a
-            // separate `capacity` field, which is annoying, i don't want to reimplement Vec.
-            // `dealloc` will still work properly because we don't pass it a length.
             // TODO: maybe we could implement this as `Vec<T, Alloc = ExecAllocator>` instead?
             ExecutableMemory {
                 ptr,
                 len: data.len(),
+                cap,
             }
         }
     }
@@ -53,6 +52,10 @@ impl ExecutableMemory {
     #[inline(always)]
     pub fn len(&self) -> usize {
         self.len
+    }
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     #[inline]
@@ -100,7 +103,7 @@ impl Drop for ExecutableMemory {
     #[inline]
     fn drop(&mut self) {
         unsafe {
-            dealloc_executable_memory(self.ptr);
+            dealloc_executable_memory(self.ptr, self.cap);
         }
     }
 }
@@ -122,15 +125,8 @@ unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
     let page_size = libc::sysconf(libc::_SC_PAGESIZE) as usize;
     let actual = round_to(desired, page_size);
 
-    let mut raw_addr: *mut libc::c_void = ptr::null_mut();
-    libc::posix_memalign(&mut raw_addr, page_size, actual);
-    libc::mprotect(
-        raw_addr,
-        actual,
-        libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE,
-    );
-
-    (raw_addr.cast(), actual)
+    let ptr = libc::mmap(ptr::null_mut(), actual, libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE, libc::MAP_PRIVATE | libc::MAP_ANONYMOUS, -1, 0);
+    if ptr == libc::MAP_FAILED { (ptr::null_mut(), 0) } else { (ptr.cast(), actual) }
 }
 #[cfg(target_os = "windows")]
 unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
@@ -143,7 +139,7 @@ unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
 
     let actual = round_to(desired, page_size as usize);
     let raw_addr: *mut winapi::ctypes::c_void = winapi::um::memoryapi::VirtualAlloc(
-        ::core::ptr::null_mut(),
+        ptr::null_mut(),
         actual,
         winapi::um::winnt::MEM_RESERVE | winapi::um::winnt::MEM_COMMIT,
         winapi::um::winnt::PAGE_EXECUTE_READWRITE,
@@ -160,8 +156,8 @@ unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-unsafe fn dealloc_executable_memory(ptr: *mut u8) {
-    libc::free(ptr as *mut _);
+unsafe fn dealloc_executable_memory(ptr: *mut u8, cap: usize) {
+    libc::munmap(ptr as *mut _, cap);
 }
 #[cfg(target_os = "windows")]
 unsafe fn dealloc_executable_memory(ptr: *mut u8) {
