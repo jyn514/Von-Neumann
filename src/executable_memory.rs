@@ -94,7 +94,7 @@ impl Drop for ExecutableMemory {
 unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8 {
     use core::mem::MaybeUninit;
 
-    let size = page_size * num_pages;
+    let size = page_size.checked_mul(num_pages).unwrap_or_else(|| panic!("{} overflowed usize::MAX", num_pages));
     let mut raw_addr = MaybeUninit::<*mut libc::c_void>::uninit();
 
     libc::posix_memalign(raw_addr.as_mut_ptr(), page_size, size);
@@ -105,7 +105,7 @@ unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8
 }
 #[cfg(target_os = "windows")]
 unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8 {
-    let size = page_size * num_pages;
+    let size = page_size.checked_mul(num_pages).unwrap_or_else(|| panic!("{} overflowed usize::MAX", num_pages));
     let raw_addr: *mut winapi::ctypes::c_void;
 
     raw_addr = winapi::um::memoryapi::VirtualAlloc(
@@ -155,5 +155,11 @@ mod test {
         };
 
         assert_eq!(f(), 4294967295);
+    }
+
+    #[test]
+    #[should_panic = "overflowed usize::MAX"]
+    fn overflow() {
+        ExecutableMemory::new(usize::MAX);
     }
 }
