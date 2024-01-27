@@ -92,10 +92,13 @@ impl Drop for ExecutableMemory {
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 unsafe fn alloc_executable_memory(page_size: usize, num_pages: usize) -> *mut u8 {
-    let size = page_size * num_pages;
-    let mut raw_addr: *mut libc::c_void = mem::uninitialized();
+    use core::mem::MaybeUninit;
 
-    libc::posix_memalign(&mut raw_addr, page_size, size);
+    let size = page_size * num_pages;
+    let mut raw_addr = MaybeUninit::<*mut libc::c_void>::uninit();
+
+    libc::posix_memalign(raw_addr.as_mut_ptr(), page_size, size);
+    let raw_addr = raw_addr.assume_init();
     libc::mprotect(raw_addr, size, libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE);
 
     mem::transmute(raw_addr)
