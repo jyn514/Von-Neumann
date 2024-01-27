@@ -3,9 +3,7 @@ Von Neumann
 
 executable memory for windows and unix ("von Neumann architecture")
 
-note: this crate maps pages as RWX. this is somewhat insecure and makes it easier to escalate security vulns. there is an alternative crate [`jit-allocator`] which "dual maps" pages as RX and RW, avoiding this issue.
-
-[`jit-allocator`]: https://docs.rs/crate/jit-allocator/
+## example
 
 ```rust
 use vonneumann::ExecutableMemory;
@@ -28,3 +26,26 @@ fn main() {
     assert_eq!(f(), 4294967295);
 }
 ```
+
+## comparison with other executable-memory crates
+
+### [`jit-allocator`]
+
+this crate maps pages as RWX. this is somewhat insecure and makes it easier to escalate security vulns. [`jit-allocator`] "dual maps" pages as RX and RW, avoiding this issue.
+
+this crate always allocates full pages, which is inefficient for small allocations, and slow if you allocate frequently. `jit-allocator` can return byte-level allocations instead.
+
+this crate supports the `Allocator` API when `--features nightly` is enabled. as a result, it can be used with `Vec`, and using it requires less unsafe (basically just the transmute to turn the data into a function pointer). jit-allocator inherently cannot do this because it uses dual-mapping.
+
+[`jit-allocator`]: https://docs.rs/crate/jit-allocator/
+
+### [`memfd-exec`]
+
+[`memfd-exec`] serves a different purpose altogether: it executes whole processes. this crate is for executing individual functions that share your process state.
+
+[`memfd-exec`]: https://lib.rs/crates/memfd-exec
+
+### "just handrolling it with mmap lol"
+
+this crate automatically unmaps the memory for you on drop, and supports windows as well as unix.
+unlike `memmap2` you can have the memory be executable and writable at the same time :ferrisClueless:
