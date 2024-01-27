@@ -1,4 +1,4 @@
-use core::{slice, mem, fmt};
+use core::{fmt, mem, ptr, slice};
 use core::ops::{Deref, DerefMut};
 use core::mem::MaybeUninit;
 
@@ -14,9 +14,15 @@ impl ExecutableMemory {
     ///
     /// The region will be at least `desired_size` large, but may be larger if `desired_size` is not
     /// a multiple of the page size.
+    /// For safety, this function zeroes all the memory it allocates. This may lead to adverse
+    /// performance effects. Consider using [`with_contents`](Self::with_contents) instead.
     pub fn new(desired_size: usize) -> Self {
-        let (ptr, len) = unsafe { alloc_executable_memory(desired_size) };
-        ExecutableMemory { ptr, len }
+        unsafe {
+            let (ptr, len) = alloc_executable_memory(desired_size);
+            // SAFETY: `alloc_executable_memory` guarantees `ptr` is `len` and aligned.
+            ptr::write_bytes(ptr, 0_u8, len);
+            ExecutableMemory { ptr, len }
+        }
     }
 
     /// Return a region of executable memory set to the contents of `data`.
@@ -24,9 +30,18 @@ impl ExecutableMemory {
     /// The region will be rounded up to the nearest page (see [`PAGE_SIZE`]).
     /// The contents of the memory after `data.len()` is not specified.
     pub fn with_contents(data: &[u8]) -> Self {
-        let mut mem = Self::new(data.len());
-        mem.as_slice_mut()[..data.len()].copy_from_slice(&data);
-        mem
+        unsafe {
+            let (ptr, _) = alloc_executable_memory(data.len());
+            // SAFETY: `alloc_executable_memory` guarantees it returns a new memory allocation, so these don't overlap.
+            // it also guarantees `ptr` is at least `data.len()` and aligned.
+            // rust's safety guarantees ensure `data.ptr()` and `data.len()` are aligned and accurate.
+            ptr::copy_nonoverlapping(data.as_ptr(), ptr, data.len());
+            // NOTE: we ignore how much memory was actually allocated. the alternative is to add a
+            // separate `capacity` field, which is annoying, i don't want to reimplement Vec.
+            // `dealloc` will still work properly because we don't pass it a length.
+            // TODO: maybe we could implement this as `Vec<T, Alloc = ExecAllocator>` instead?
+            ExecutableMemory { ptr, len: data.len() }
+        }
     }
 
     #[inline(always)]
@@ -41,12 +56,17 @@ impl ExecutableMemory {
     #[inline]
     pub fn as_slice(&self) -> &[u8] {
         unsafe {
+            // SAFETY: `len` and `ptr` cannot be modified outside this module, and both `new` and
+            // `with_contents` guarantee that `len` bytes of `ptr` are initialized.
+            // this slice cannot be mutated: the only way to mutate is through `as_slice_mut`, which takes `&mut self`.
             slice::from_raw_parts(self.ptr, self.len)
         }
     }
     #[inline]
     pub fn as_slice_mut(&mut self) -> &mut [u8] {
         unsafe {
+            // SAFETY: `&mut self` guarantees we don't have two slices at once.
+            // theoretically someone could call `unsafe { *mem.as_ptr() = x }` but that's on them to uphold the safety guarantees.
             slice::from_raw_parts_mut(self.ptr, self.len)
         }
     }
