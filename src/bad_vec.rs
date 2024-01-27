@@ -14,20 +14,15 @@ impl ExecutableMemory {
     #[inline]
     /// Return a new region of executable memory.
     ///
-    /// The region will be at least `desired_size` large, but may be larger if `desired_size` is not
+    /// The region will be at least `desired_size` bytes large, but may be larger if `desired_size` is not
     /// a multiple of the page size.
-    /// For safety, this function zeroes all the memory it allocates. This may lead to adverse
-    /// performance effects. Consider using [`with_contents`](Self::with_contents) instead.
-    /// On nightly, you can use [`Vec<_, ExecAlloc>`][crate::Vec], which has more APIs available.
+    /// The memory returned will be initialized, but its contents is not specified.
     pub fn new(desired_size: usize) -> Self {
-        unsafe {
-            let slice = alloc_executable_memory(desired_size).expect("failed to allocate memory");
-            // SAFETY: `alloc_executable_memory` guarantees `ptr` is `len` and aligned.
-            ptr::write_bytes(slice.as_ptr().cast::<u8>(), 0_u8, slice.len());
-            ExecutableMemory {
-                slice,
-                len: slice.len(),
-            }
+        let slice = alloc_executable_memory(desired_size).expect("failed to allocate memory");
+        // SAFETY: `mmap` zero-inits memory
+        ExecutableMemory {
+            slice,
+            len: slice.len(),
         }
     }
 
@@ -39,7 +34,6 @@ impl ExecutableMemory {
             // it also guarantees `slice` is at least `data.len()` and aligned.
             // rust's safety guarantees ensure `data.ptr()` and `data.len()` are aligned and accurate.
             ptr::copy_nonoverlapping(data.as_ptr(), slice.as_ptr().cast(), data.len());
-            // TODO: maybe we could implement this as `Vec<T, Alloc = ExecAllocator>` instead?
             ExecutableMemory {
                 slice,
                 len: data.len(),
@@ -63,8 +57,8 @@ impl ExecutableMemory {
     #[inline]
     pub fn as_slice(&self) -> &[u8] {
         unsafe {
-            // SAFETY: `len` and `ptr` cannot be modified outside this module, and both `new` and
-            // `with_contents` guarantee that `len` bytes of `ptr` are initialized.
+            // SAFETY: `slice` and `len` cannot be modified outside this module, and both `new` and
+            // `with_contents` guarantee that `len` bytes of `slice` are initialized.
             // this slice cannot be mutated: the only way to mutate is through `as_slice_mut`, which takes `&mut self`.
             slice::from_raw_parts(self.as_ptr(), self.len)
         }
