@@ -18,7 +18,7 @@ fn bench_native(b: &mut Bencher) {
 
 #[bench]
 fn bench_executable_memory(b: &mut Bencher) {
-    let mut memory = ExecutableMemory::default();
+    let mut memory = ExecutableMemory::new(6);
 
     memory[0] = 0xb8;
     memory[1] = 0xff;
@@ -27,7 +27,7 @@ fn bench_executable_memory(b: &mut Bencher) {
     memory[4] = 0xff;
     memory[5] = 0xc3;
 
-    let f: fn() -> u32 = unsafe { mem::transmute((&memory[0..6]).as_ptr()) };
+    let f: fn() -> u32 = unsafe { mem::transmute((memory[0..6]).as_ptr()) };
 
     b.iter(f);
 }

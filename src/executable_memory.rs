@@ -171,7 +171,7 @@ unsafe fn dealloc_executable_memory(ptr: *mut u8, cap: usize) {
     libc::munmap(ptr as *mut _, cap);
 }
 #[cfg(target_os = "windows")]
-unsafe fn dealloc_executable_memory(ptr: *mut u8) {
+unsafe fn dealloc_executable_memory(ptr: *mut u8, _: usize) {
     winapi::um::memoryapi::VirtualFree(ptr as *mut _, 0, winapi::um::winnt::MEM_RELEASE);
 }
 
