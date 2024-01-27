@@ -1,6 +1,10 @@
 #![doc = include_str!("../README.md")]
 #![no_std]
 #![cfg_attr(feature = "nightly", feature(allocator_api, doc_auto_cfg))]
+//! # Soundness
+//!
+//! The Rust Abstract Machine is clueless about the fact that
+//! memory can be executable so i'm off the hook
 
 mod exec_alloc;
 
