@@ -1,6 +1,6 @@
-use core::{fmt, mem, ptr, slice};
-use core::ops::{Deref, DerefMut};
 use core::mem::MaybeUninit;
+use core::ops::{Deref, DerefMut};
+use core::{fmt, mem, ptr, slice};
 
 #[derive(PartialEq, Eq)]
 pub struct ExecutableMemory {
@@ -40,7 +40,10 @@ impl ExecutableMemory {
             // separate `capacity` field, which is annoying, i don't want to reimplement Vec.
             // `dealloc` will still work properly because we don't pass it a length.
             // TODO: maybe we could implement this as `Vec<T, Alloc = ExecAllocator>` instead?
-            ExecutableMemory { ptr, len: data.len() }
+            ExecutableMemory {
+                ptr,
+                len: data.len(),
+            }
         }
     }
 
@@ -106,7 +109,13 @@ impl Drop for ExecutableMemory {
 /// Round `desired` up to the nearest multiple of `page_size`.
 fn round_to(desired: usize, page_size: usize) -> usize {
     let rem = desired % page_size;
-    if rem == 0 { desired } else { desired.checked_add(page_size - rem).expect("don't try to allocate usize::MAX lol") }
+    if rem == 0 {
+        desired
+    } else {
+        desired
+            .checked_add(page_size - rem)
+            .expect("don't try to allocate usize::MAX lol")
+    }
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -117,7 +126,11 @@ unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
     let mut raw_addr = MaybeUninit::<*mut libc::c_void>::uninit();
     libc::posix_memalign(raw_addr.as_mut_ptr(), page_size, actual);
     let raw_addr = raw_addr.assume_init();
-    libc::mprotect(raw_addr, actual, libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE);
+    libc::mprotect(
+        raw_addr,
+        actual,
+        libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE,
+    );
 
     (mem::transmute(raw_addr), actual)
 }
@@ -133,11 +146,12 @@ unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
         ::core::ptr::null_mut(),
         actual,
         winapi::um::winnt::MEM_RESERVE | winapi::um::winnt::MEM_COMMIT,
-        winapi::um::winnt::PAGE_EXECUTE_READWRITE
+        winapi::um::winnt::PAGE_EXECUTE_READWRITE,
     );
 
     assert_ne!(
-        raw_addr, 0 as *mut winapi::ctypes::c_void,
+        raw_addr,
+        0 as *mut winapi::ctypes::c_void,
         "Could not allocate memory. Error Code: {:?}",
         winapi::um::errhandlingapi::GetLastError()
     );
@@ -151,14 +165,12 @@ unsafe fn dealloc_executable_memory(ptr: *mut u8) {
 }
 #[cfg(target_os = "windows")]
 unsafe fn dealloc_executable_memory(ptr: *mut u8) {
-	winapi::um::memoryapi::VirtualFree(ptr as *mut _, 0, winapi::um::winnt::MEM_RELEASE);
+    winapi::um::memoryapi::VirtualFree(ptr as *mut _, 0, winapi::um::winnt::MEM_RELEASE);
 }
-
 
 #[cfg(test)]
 mod test {
     use super::*;
-
 
     #[test]
     fn test_call_function() {
@@ -171,9 +183,7 @@ mod test {
         memory[4] = 0xff;
         memory[5] = 0xc3;
 
-        let f: fn() -> u32 = unsafe {
-            mem::transmute((&memory[0..6]).as_ptr())
-        };
+        let f: fn() -> u32 = unsafe { mem::transmute((&memory[0..6]).as_ptr()) };
 
         assert_eq!(f(), 4294967295);
     }
