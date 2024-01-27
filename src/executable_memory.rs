@@ -1,4 +1,3 @@
-use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
 use core::{fmt, ptr, slice};
 
@@ -123,9 +122,8 @@ unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
     let page_size = libc::sysconf(libc::_SC_PAGESIZE) as usize;
     let actual = round_to(desired, page_size);
 
-    let mut raw_addr = MaybeUninit::<*mut libc::c_void>::uninit();
-    libc::posix_memalign(raw_addr.as_mut_ptr(), page_size, actual);
-    let raw_addr = raw_addr.assume_init();
+    let mut raw_addr: *mut libc::c_void = ptr::null_mut();
+    libc::posix_memalign(&mut raw_addr, page_size, actual);
     libc::mprotect(
         raw_addr,
         actual,
@@ -136,7 +134,9 @@ unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
 }
 #[cfg(target_os = "windows")]
 unsafe fn alloc_executable_memory(desired: usize) -> (*mut u8, usize) {
+    use core::mem::MaybeUninit;
     use winapi::um::sysinfoapi;
+
     let mut sysinfo = MaybeUninit::<sysinfoapi::SYSTEM_INFO>::uninit();
     sysinfoapi::GetSystemInfo(sysinfo.as_mut_ptr());
     let page_size = sysinfo.assume_init().dwAllocationGranularity;
