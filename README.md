@@ -53,6 +53,18 @@ unlike `memmap2` you can have the memory be executable and writable at the same 
 
 ## faq
 
+### does this work on macOS?
+
+yes!
+
+### even with runtime hardening?
+
+no???? i cannot imagine the confusion of ideas that could prompt such a question the man page literally says "MAP_JIT regions are never writeable and executable simultaneously" lol
+
+### does it work on aarch64?
+
+probably but i haven't tested 🤪
+
 ### can i use this in prod?
 
 lol please do i want to watch your code burn
