@@ -53,13 +53,19 @@ unlike `memmap2` you can have the memory be executable and writable at the same 
 
 ## faq
 
+### is anyone actually using this?
+
+yes! <https://github.com/chellipse/bf-jit>
+
 ### does this work on macOS?
 
 yes!
 
 ### even with runtime hardening?
 
-no???? i cannot imagine the confusion of ideas that could prompt such a question the man page literally says "MAP_JIT regions are never writeable and executable simultaneously" lol
+no???? the man page literally says "MAP_JIT regions are never writeable and executable simultaneously" lol
+
+if someone wants this i can imagine an api that forces you to call `make_mut` and `make_exec` separately though. i am not doing dual-mapping. no.
 
 ### does it work on aarch64?
 
