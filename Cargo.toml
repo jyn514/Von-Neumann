@@ -16,8 +16,9 @@ repository = "https://github.com/jyn514/Von-Neumann"
 nightly = []
 
 [target.'cfg(unix)'.dependencies]
-libc = { version = "0.2" }
+libc = { version = "0.2", default-features = false }
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["memoryapi", "winnt", "sysinfoapi"] }
+winapi = { version = "0.3", default-features = false, features = ["memoryapi", "winnt", "sysinfoapi"] }
 
-[dev-dependencies]
+[package.metadata.docs.rs]
+all-features = true
