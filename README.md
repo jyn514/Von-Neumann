@@ -76,3 +76,7 @@ probably but i haven't tested 🤪
 lol please do i want to watch your code burn
 
 as a reminder THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED
+
+## testimonials
+
+"You have created an abomination before god and man." -- @philipaconrad

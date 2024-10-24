@@ -13,8 +13,19 @@ fn round_to(desired: usize, page_size: usize) -> usize {
     }
 }
 
+pub(crate) fn alloc_executable_memory(desired: usize) -> Result<NonNull<[u8]>, ()> {
+    // https://doc.rust-lang.org/std/alloc/struct.Layout.html
+    assert!(
+        desired <= isize::MAX as usize,
+        "alloc {desired} is too big; allocating more than isize::MAX is not allowed"
+    );
+    impl_::alloc_executable_memory(desired)
+}
+
+pub(crate) use impl_::*;
+
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-pub(crate) use unix::*;
+use unix as impl_;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod unix {
     use super::*;
@@ -26,7 +37,7 @@ mod unix {
         size as usize
     }
 
-    pub(crate) fn alloc_executable_memory(desired: usize) -> Result<NonNull<[u8]>, ()> {
+    pub(super) fn alloc_executable_memory(desired: usize) -> Result<NonNull<[u8]>, ()> {
         let actual = round_to(desired, page_size());
         unsafe {
             let ptr = libc::mmap(
@@ -57,7 +68,7 @@ mod unix {
 }
 
 #[cfg(target_os = "windows")]
-pub(crate) use windows::*;
+use windows as impl_;
 #[cfg(target_os = "windows")]
 mod windows {
     use super::*;

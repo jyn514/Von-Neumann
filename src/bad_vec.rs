@@ -110,8 +110,8 @@ mod test {
     use super::*;
 
     #[test]
-    #[should_panic = "don't try to allocate usize::MAX lol"]
+    #[should_panic = "allocating more than isize::MAX is not allowed"]
     fn overflow() {
-        ExecutableMemory::new(usize::MAX);
+        ExecutableMemory::new(isize::MAX as usize + 1);
     }
 }
