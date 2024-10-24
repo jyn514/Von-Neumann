@@ -13,7 +13,7 @@ fn round_to(desired: usize, page_size: usize) -> usize {
     }
 }
 
-pub(crate) fn alloc_executable_memory(desired: usize) -> Result<NonNull<[u8]>, ()> {
+pub(crate) fn alloc_executable_memory(desired: usize) -> Result<NonNull<[u8]>, c_int> {
     // https://doc.rust-lang.org/std/alloc/struct.Layout.html
     assert!(
         desired <= isize::MAX as usize,
@@ -29,6 +29,7 @@ use unix as impl_;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod unix {
     use super::*;
+    pub(super) use libc::c_int;
 
     pub(crate) fn page_size() -> usize {
         // SAFETY: sysconf has no validity requirements
@@ -37,7 +38,7 @@ mod unix {
         size as usize
     }
 
-    pub(super) fn alloc_executable_memory(desired: usize) -> Result<NonNull<[u8]>, ()> {
+    pub(super) fn alloc_executable_memory(desired: usize) -> Result<NonNull<[u8]>, libc::c_int> {
         let actual = round_to(desired, page_size());
         unsafe {
             let ptr = libc::mmap(
@@ -49,13 +50,13 @@ mod unix {
                 0,
             );
             if ptr == libc::MAP_FAILED {
-                Err(())
+                Err(nix::errno::Errno::last_raw())
             } else {
                 match NonNull::new(ptr.cast()) {
                     Some(ptr) => Ok(NonNull::slice_from_raw_parts(ptr, actual)),
                     // NOTE: it's actually valid for mmap to point to the 0 address. but rust's allocator design rules this out.
                     // oops!
-                    None => Err(()),
+                    None => Err(0),
                 }
             }
         }
@@ -72,6 +73,8 @@ use windows as impl_;
 #[cfg(target_os = "windows")]
 mod windows {
     use super::*;
+    pub(super) use winapi::shared::minwindef::DWORD;
+    pub(super) use DWORD as c_int;
 
     pub(crate) fn page_size() -> usize {
         use core::mem::MaybeUninit;
@@ -86,20 +89,20 @@ mod windows {
         }
     }
 
-    pub(crate) fn alloc_executable_memory(desired: usize) -> Result<NonNull<[u8]>, ()> {
+    pub(crate) fn alloc_executable_memory(desired: usize) -> Result<NonNull<[u8]>, DWORD> {
         let actual = round_to(desired, page_size());
-        let raw_addr = unsafe {
-            winapi::um::memoryapi::VirtualAlloc(
+        unsafe {
+            let raw_addr = winapi::um::memoryapi::VirtualAlloc(
                 ptr::null_mut(),
                 actual,
                 winapi::um::winnt::MEM_RESERVE | winapi::um::winnt::MEM_COMMIT,
                 winapi::um::winnt::PAGE_EXECUTE_READWRITE,
-            )
-        };
+            );
 
-        match NonNull::new(raw_addr.cast()) {
-            Some(ptr) => Ok(NonNull::slice_from_raw_parts(ptr, actual)),
-            None => Err(()),
+            match NonNull::new(raw_addr.cast()) {
+                Some(ptr) => Ok(NonNull::slice_from_raw_parts(ptr, actual)),
+                None => Err(winapi::um::errhandlingapi::GetLastError()),
+            }
         }
     }
 

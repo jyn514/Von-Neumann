@@ -17,8 +17,9 @@ nightly = []
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }
+nix = "0.29"
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", default-features = false, features = ["memoryapi", "winnt", "sysinfoapi"] }
+winapi = { version = "0.3", default-features = false, features = ["memoryapi", "winnt", "sysinfoapi", "errhandlingapi"] }
 
 [package.metadata.docs.rs]
 all-features = true
